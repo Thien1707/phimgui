@@ -1,0 +1,15 @@
+Flask>=3.0,<4
+mongoengine>=0.29,<1
+pymongo>=4.6,<5
+dnspython>=2.6,<3
+python-dotenv>=1.0,<2
+PyJWT>=2.8,<3
+bcrypt>=4.1,<5
+httpx>=0.27,<1
+pydantic>=2.6,<3
+Flask-Limiter>=3.5,<4
+customtkinter>=5.2,<6
+Pillow>=10,<12
+python-vlc>=3.0,<4
+tkinterweb>=4.0,<5
+tkwebview2>=3.0,<4
