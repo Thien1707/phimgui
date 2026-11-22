@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # PHIMHAY-GUI
 
 Dự án desktop **Python + Flask + MongoDB + CustomTkinter**, tái hiện nghiệp vụ từ [`D:\PHIMHAY`](../PHIMHAY).
@@ -54,3 +55,6 @@ python -m gui.main
 | [docs/DEVELOPMENT_ROADMAP.md](docs/DEVELOPMENT_ROADMAP.md) | Lộ trình & kiểm thử |
 
 SQL khởi tạo (chưa thực thi): [database/init.sql](database/init.sql)
+=======
+# phimgui
+>>>>>>> 60c0a25c74700bc0faa16f2ed8b921859139f043
