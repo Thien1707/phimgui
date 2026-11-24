@@ -1,60 +1,62 @@
-<<<<<<< HEAD
 # PHIMHAY-GUI
 
-Dự án desktop **Python + Flask + MongoDB + CustomTkinter**, tái hiện nghiệp vụ từ [`D:\PHIMHAY`](../PHIMHAY).
+Đồ án xem phim trực tuyến gồm hai cách sử dụng cùng đề tài: ứng dụng desktop Python/CustomTkinter với REST API Flask và MongoDB; cùng phiên bản web Flask được xây dựng theo tiêu chí báo cáo môn học, dùng Jinja2, Flask-WTF, Flask-SQLAlchemy và Flask-Mail. Phiên bản web lưu dữ liệu mặc định trong SQLite để giảng viên có thể chạy nhanh; có thể đổi sang MySQL bằng `WEB_DATABASE_URL`.
 
-## Cài đặt nhanh (Windows)
-
-1. Tạo cluster **MongoDB Atlas** (hoặc chạy MongoDB local), tạo user DB và whitelist IP.
-2. Copy `.env.example` → `.env`, điền `MONGODB_URI` (user/password cluster — password đặc biệt cần URL-encode).
-3. Trong thư mục dự án:
+## Cài đặt
 
 ```bat
-python -m venv venv
-venv\Scripts\activate
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
+copy .env.example .env
+```
+
+### Khởi chạy phiên bản web
+
+Trong `.env`, đặt `WEB_SECRET_KEY` thành giá trị ngẫu nhiên riêng. Khởi tạo cơ sở dữ liệu và tạo tài khoản quản trị:
+
+```bat
+flask --app run_web.py init-db
+flask --app run_web.py create-admin
+python run_web.py
+```
+
+Mở `http://127.0.0.1:5001`. Đăng ký tài khoản người dùng từ giao diện. Tạo phim và sửa/xóa phim bằng tài khoản quản trị. Khi cấu hình SMTP, ứng dụng gửi email chào mừng sau đăng ký; nếu chưa cấu hình SMTP, tài khoản vẫn được tạo và ứng dụng báo rõ email chưa gửi.
+
+Endpoint JSON có phân trang: `GET /api/movies?q=batman&page=1&limit=12`. Chi tiết/phát phim yêu cầu kết nối `phimapi.com`; tính năng còn lại dùng dữ liệu trong cơ sở dữ liệu cục bộ.
+
+### Ứng dụng desktop/API hiện có
+
+Ứng dụng desktop tiếp tục dùng MongoDB và chạy như trước:
+
+```bat
 python -m backend.seed
 python run_desktop.py
 ```
 
-Hoặc double-click `start.bat` (sau khi đã cấu hình MongoDB).
+Thiết lập `MONGODB_URI` trong `.env` trước khi chạy. API desktop mặc định tại `http://127.0.0.1:5000`.
 
-**Tài khoản admin mẫu** (sau seed): `admin@local.test` / `Admin@123` (display_name: `admin`).
+## Tính năng phiên bản web
 
-## Tính năng app (GUI)
+- Đăng ký, đăng nhập, đăng xuất; mật khẩu được băm bằng Werkzeug và biểu mẫu được bảo vệ CSRF.
+- Danh sách phim, tìm theo tên tiếng Việt/tên gốc và phân trang.
+- CRUD phim dành cho tài khoản quản trị.
+- Chi tiết phim, bình luận có đăng nhập, lưu lịch sử khi bắt đầu xem.
+- Tích hợp phimapi bằng `urllib`, phân tích JSON và nhúng trình phát từ API ngoài.
+- REST endpoint trả danh sách phim JSON có phân trang.
+- Gửi email chào mừng bằng Flask-Mail khi SMTP được cấu hình.
 
-- Trang chủ: tìm kiếm, lọc loại / quốc gia / thể loại, phân trang
-- Trang chủ: poster hover (hand cursor), nhấp vào poster → chi tiết
-- Chi tiết: nút **Xem phim** → trang xem trong cùng cửa sổ (sidebar ẩn, nút ← / Esc quay lại chi tiết)
-- Trình phát nhúng: **VLC** cho `.m3u8` (cài [VLC](https://www.videolan.org/) trên Windows) hoặc **tkinterweb** cho link embed
-- Lưu lịch sử, bình luận, đánh giá sao
-- Lịch sử xem / xem tiếp, hồ sơ cá nhân, mua VIP (VNPay nếu cấu hình `.env`)
-- **Quản trị** (admin): dashboard, import phim theo slug, VIP/free, users, cài đặt hệ thống, nhật ký
+## Cấu trúc liên quan
 
-Mật khẩu MongoDB có ký tự `@` trong `.env` phải URL-encode (`@` → `%40`).
-
-## Chạy tách backend / GUI
-
-```bat
-venv\Scripts\activate
-python -m backend.app
-python -m gui.main
+```text
+app/                 Flask app factory, models, forms, routes, templates, static
+backend/             REST API và nghiệp vụ desktop hiện có
+gui/                 Giao diện CustomTkinter
+docs/                Phân tích, thiết kế và báo cáo đồ án
+run_web.py           Chạy phiên bản web trên localhost:5001
+run_desktop.py       Chạy backend desktop và GUI
 ```
 
-## Tài liệu
+## Báo cáo
 
-| File | Mô tả |
-|------|--------|
-| [docs/PROJECT_ANALYSIS.md](docs/PROJECT_ANALYSIS.md) | Phân tích PHIMHAY gốc |
-| [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) | Kế hoạch tổng thể + feature mapping |
-| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Yêu cầu chức năng / phi chức năng |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Kiến trúc Flask + GUI |
-| [docs/DATABASE_DESIGN.md](docs/DATABASE_DESIGN.md) | Thiết kế MySQL |
-| [docs/API_SPECIFICATION.md](docs/API_SPECIFICATION.md) | API dự kiến |
-| [docs/GUI_DESIGN.md](docs/GUI_DESIGN.md) | Màn hình desktop |
-| [docs/DEVELOPMENT_ROADMAP.md](docs/DEVELOPMENT_ROADMAP.md) | Lộ trình & kiểm thử |
-
-SQL khởi tạo (chưa thực thi): [database/init.sql](database/init.sql)
-=======
-# phimgui
->>>>>>> 60c0a25c74700bc0faa16f2ed8b921859139f043
+Nội dung và bản DOCX báo cáo được lưu trong `docs/`. Thông tin nhóm, MSSV và ảnh chụp chạy thực tế cần được bổ sung trước khi nộp chính thức.

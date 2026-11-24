@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}PHIMHAY{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topbar"><a class="brand" href="{{ url_for('catalog.index') }}">PHIMHAY</a>
+  <nav><a href="{{ url_for('catalog.index') }}">Khám phá</a>
+    {% if current_user.is_authenticated %}<a href="{{ url_for('movies.history') }}">Lịch sử</a>
+      {% if current_user.role == 'admin' %}<a href="{{ url_for('movies.create_movie') }}">Quản lý phim</a>{% endif %}
+      <span class="user-name">{{ current_user.username }}</span>
+      <form class="inline" method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="link-button">Thoát</button></form>
+    {% else %}<a href="{{ url_for('auth.login') }}">Đăng nhập</a><a class="nav-cta" href="{{ url_for('auth.register') }}">Đăng ký</a>{% endif %}
+  </nav>
+</header>
+<main class="container">
+  {% for category, message in get_flashed_messages(with_categories=true) %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}
+  {% block content %}{% endblock %}
+</main>
+<footer>PHIMHAY · Đồ án Lập trình Python nâng cao · <a href="{{ url_for('catalog.movies_json') }}">API JSON</a></footer>
+</body></html>

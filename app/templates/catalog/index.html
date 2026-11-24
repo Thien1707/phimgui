@@ -1,0 +1,16 @@
+{% extends 'base.html' %}{% block title %}Khám phá phim · PHIMHAY{% endblock %}
+{% block content %}
+<section class="hero"><p class="eyebrow">THƯ VIỆN PHIM</p><h1>Chọn bộ phim cho tối nay</h1><p>Tìm kiếm phim, khám phá nội dung mới và lưu lại lịch sử xem.</p>
+  <form class="search" method="get"><input name="q" value="{{ request.args.get('q','') }}" placeholder="Tên phim hoặc tên gốc"><button>Tìm phim</button></form>
+</section>
+{% if current_user.is_authenticated and current_user.role == 'admin' %}<p><a class="button secondary" href="{{ url_for('movies.create_movie') }}">+ Thêm phim</a></p>{% endif %}
+<div class="section-heading"><h2>{% if request.args.get('q') %}Kết quả tìm kiếm{% else %}Danh sách phim{% endif %}</h2><span>{{ page.total }} phim</span></div>
+<section class="movie-grid">
+{% for movie in page.items %}<article class="movie-card"><a href="{{ url_for('movies.detail', movie_id=movie.id) }}">
+  {% if movie.poster_url %}<img src="{{ movie.poster_url }}" alt="Poster {{ movie.title }}">{% else %}<div class="poster-placeholder">PHIMHAY</div>{% endif %}
+  <div class="movie-meta">{% if movie.is_vip %}<span class="badge">VIP</span>{% endif %}<span>{{ movie.year or 'Phim mới' }}{% if movie.category %} · {{ movie.category }}{% endif %}</span></div>
+  <h3>{{ movie.title }}</h3><p class="muted">{{ movie.origin_name }}</p></a></article>
+{% else %}<p class="empty">Chưa có phim phù hợp. Quản trị viên có thể thêm phim từ biểu mẫu quản lý.</p>{% endfor %}
+</section>
+{% if page.pages > 1 %}<nav class="pagination">{% if page.has_prev %}<a href="{{ url_for('catalog.index', q=request.args.get('q'), page=page.prev_num) }}">← Trước</a>{% endif %}<span>Trang {{ page.page }} / {{ page.pages }}</span>{% if page.has_next %}<a href="{{ url_for('catalog.index', q=request.args.get('q'), page=page.next_num) }}">Tiếp →</a>{% endif %}</nav>{% endif %}
+{% endblock %}
