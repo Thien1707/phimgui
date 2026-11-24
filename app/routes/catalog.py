@@ -1,8 +1,7 @@
 from flask import Blueprint, jsonify, render_template, request
-from flask_login import current_user
-
 from app.forms import SearchForm
 from app.models import Movie
+from flask import abort
 
 bp = Blueprint("catalog", __name__)
 
@@ -31,6 +30,18 @@ def movies_json():
                                                               error_out=False)
     return jsonify({"items": [{"id": m.id, "slug": m.slug, "title": m.title,
                                "originName": m.origin_name, "year": m.year,
-                               "posterUrl": m.poster_url} for m in page.items],
+                               "posterUrl": m.poster_url, "category": m.category}
+                              for m in page.items],
                     "pagination": {"page": page.page, "pages": page.pages,
                                    "total": page.total, "perPage": page.per_page}})
+
+
+@bp.get("/api/movies/<int:movie_id>")
+def movie_json(movie_id):
+    movie = Movie.query.filter_by(id=movie_id, is_active=True).first()
+    if movie is None:
+        abort(404)
+    return jsonify({"id": movie.id, "slug": movie.slug, "title": movie.title,
+                    "originName": movie.origin_name, "description": movie.description or "",
+                    "posterUrl": movie.poster_url or "", "year": movie.year,
+                    "category": movie.category or "", "isVip": movie.is_vip})

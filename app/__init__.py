@@ -3,11 +3,12 @@
 import os
 from pathlib import Path
 
-from flask import Flask
+from flask import Flask, request
 from flask_login import LoginManager
 from flask_mail import Mail
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect
+from dotenv import load_dotenv
 
 db = SQLAlchemy()
 login_manager = LoginManager()
@@ -16,8 +17,9 @@ csrf = CSRFProtect()
 
 
 def create_app(test_config=None):
-    app = Flask(__name__)
     project_root = Path(__file__).resolve().parent.parent
+    load_dotenv(project_root / ".env")
+    app = Flask(__name__)
     app.config.update(
         SECRET_KEY=os.getenv("WEB_SECRET_KEY", "dev-key-change-before-deploy"),
         SQLALCHEMY_DATABASE_URI=os.getenv(
@@ -55,6 +57,17 @@ def create_app(test_config=None):
     app.register_blueprint(catalog.bp)
     app.register_blueprint(movies.bp)
 
+    @app.before_request
+    def refresh_shared_movie_catalog():
+        if request.path == "/" or request.path.startswith(("/movies/", "/admin/movies/", "/api/movies")):
+            from app.services.catalog_sync import sync_desktop_movies_if_due
+
+            try:
+                sync_desktop_movies_if_due()
+            except Exception as exc:
+                # Keep the last local projection available if MongoDB is offline.
+                app.logger.warning("Movie catalog sync failed (%s).", type(exc).__name__)
+
     @app.cli.command("init-db")
     def init_db():
         """Tạo các bảng SQLAlchemy cho lần chạy đầu."""
@@ -78,5 +91,18 @@ def create_app(test_config=None):
         db.session.add(user)
         db.session.commit()
         print("Đã tạo tài khoản quản trị.")
+
+    @app.cli.command("sync-desktop-movies")
+    def sync_desktop_movies_command():
+        """Chép danh mục phim MongoDB desktop sang database của web."""
+        from app.services.catalog_sync import sync_desktop_movies
+
+        try:
+            created, updated = sync_desktop_movies()
+        except Exception as exc:
+            raise SystemExit(
+                "Không đồng bộ được phim. Kiểm tra MONGODB_URI trong .env và kết nối MongoDB."
+            ) from exc
+        print(f"Synced movies: added {created}, updated {updated}.")
 
     return app

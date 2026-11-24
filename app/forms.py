@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
 from wtforms import BooleanField, IntegerField, PasswordField, StringField, SubmitField, TextAreaField
-from wtforms.validators import DataRequired, Email, EqualTo, Length, NumberRange, Optional
+from wtforms.validators import DataRequired, Email, EqualTo, Length, NumberRange, Optional, Regexp
 
 
 class RegisterForm(FlaskForm):
@@ -27,6 +27,14 @@ class MovieForm(FlaskForm):
     description = TextAreaField("Mô tả", validators=[Optional(), Length(max=10000)])
     is_vip = BooleanField("Chỉ dành cho VIP")
     submit = SubmitField("Lưu phim")
+
+
+class MovieSlugForm(FlaskForm):
+    slug = StringField(
+        "Slug phimapi",
+        validators=[DataRequired(), Length(max=255), Regexp(r"^[a-zA-Z0-9_-]+$")],
+    )
+    submit = SubmitField("Tải thông tin phim")
 
 
 class SearchForm(FlaskForm):

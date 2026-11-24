@@ -3,14 +3,39 @@
 <section class="hero"><p class="eyebrow">THƯ VIỆN PHIM</p><h1>Chọn bộ phim cho tối nay</h1><p>Tìm kiếm phim, khám phá nội dung mới và lưu lại lịch sử xem.</p>
   <form class="search" method="get"><input name="q" value="{{ request.args.get('q','') }}" placeholder="Tên phim hoặc tên gốc"><button>Tìm phim</button></form>
 </section>
-{% if current_user.is_authenticated and current_user.role == 'admin' %}<p><a class="button secondary" href="{{ url_for('movies.create_movie') }}">+ Thêm phim</a></p>{% endif %}
+{% if current_user.is_authenticated and current_user.role == 'admin' %}<p><a class="button secondary" href="{{ url_for('movies.create_movie') }}">+ Nhập phim bằng slug</a></p>{% endif %}
 <div class="section-heading"><h2>{% if request.args.get('q') %}Kết quả tìm kiếm{% else %}Danh sách phim{% endif %}</h2><span>{{ page.total }} phim</span></div>
 <section class="movie-grid">
-{% for movie in page.items %}<article class="movie-card"><a href="{{ url_for('movies.detail', movie_id=movie.id) }}">
+{% for movie in page.items %}<article class="movie-card" data-movie-key="{{ movie.slug }}|{{ movie.title }}|{{ movie.poster_url }}|{{ movie.year or '' }}|{{ movie.category }}"><a href="{{ url_for('movies.detail', movie_id=movie.id) }}">
   {% if movie.poster_url %}<img src="{{ movie.poster_url }}" alt="Poster {{ movie.title }}">{% else %}<div class="poster-placeholder">PHIMHAY</div>{% endif %}
   <div class="movie-meta">{% if movie.is_vip %}<span class="badge">VIP</span>{% endif %}<span>{{ movie.year or 'Phim mới' }}{% if movie.category %} · {{ movie.category }}{% endif %}</span></div>
   <h3>{{ movie.title }}</h3><p class="muted">{{ movie.origin_name }}</p></a></article>
-{% else %}<p class="empty">Chưa có phim phù hợp. Quản trị viên có thể thêm phim từ biểu mẫu quản lý.</p>{% endfor %}
+{% else %}<p class="empty">Chưa có phim phù hợp. Quản trị viên có thể nhập phim bằng slug.</p>{% endfor %}
 </section>
 {% if page.pages > 1 %}<nav class="pagination">{% if page.has_prev %}<a href="{{ url_for('catalog.index', q=request.args.get('q'), page=page.prev_num) }}">← Trước</a>{% endif %}<span>Trang {{ page.page }} / {{ page.pages }}</span>{% if page.has_next %}<a href="{{ url_for('catalog.index', q=request.args.get('q'), page=page.next_num) }}">Tiếp →</a>{% endif %}</nav>{% endif %}
+<script>
+(() => {
+  const current = () => Array.from(document.querySelectorAll('.movie-card'))
+    .map(card => card.dataset.movieKey).join('\n');
+  const search = new URLSearchParams(location.search);
+  const page = search.get('page') || '1';
+  const query = search.get('q') || '';
+  const endpoint = new URL("{{ url_for('catalog.movies_json') }}", location.origin);
+  endpoint.searchParams.set('page', page);
+  endpoint.searchParams.set('limit', '12');
+  if (query) endpoint.searchParams.set('q', query);
+  const initial = current();
+  setInterval(async () => {
+    try {
+      const response = await fetch(endpoint, {cache: 'no-store'});
+      if (!response.ok) return;
+      const data = await response.json();
+      const latest = (data.items || []).map(movie =>
+        [movie.slug, movie.title, movie.posterUrl || '', movie.year || '', movie.category || ''].join('|')
+      ).join('\n');
+      if (latest !== initial) location.reload();
+    } catch (_) { /* Temporary network issue; next poll retries. */ }
+  }, 15000);
+})();
+</script>
 {% endblock %}

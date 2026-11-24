@@ -16,11 +16,11 @@
 
 Người xem phim trực tuyến cần một nơi tập trung để tra cứu tên phim, xem thông tin nội dung, mở nguồn phát và ghi nhớ những phim đã xem. Quản trị viên cần thêm, cập nhật và xóa thông tin phim mà không thao tác trực tiếp trên cơ sở dữ liệu. Đề tài xây dựng PHIMHAY, một ứng dụng web tiếng Việt dùng Flask. Khách có thể tìm kiếm danh mục; thành viên có thể đăng ký, đăng nhập, bình luận và bắt đầu xem; quản trị viên có thể quản lý phim. Ứng dụng lấy dữ liệu tập phim và đường dẫn nhúng từ phimapi.com.
 
-Repo ban đầu đã có REST API Flask, MongoDB và giao diện desktop CustomTkinter. Để đáp ứng mẫu học phần yêu cầu trình bày ứng dụng Flask web, nhóm bổ sung phiên bản web có Jinja2, Flask-WTF, Flask-SQLAlchemy và Flask-Mail. Hai phiên bản dùng chung đề tài và cùng khai thác phimapi.com, nhưng dữ liệu web lưu trong SQLite mặc định, còn phiên bản desktop tiếp tục dùng MongoDB.
+Repo ban đầu đã có REST API Flask, MongoDB và giao diện desktop CustomTkinter. Để đáp ứng mẫu học phần yêu cầu trình bày ứng dụng Flask web, nhóm bổ sung phiên bản web có Jinja2, Flask-WTF, Flask-SQLAlchemy và Flask-Mail. Hai giao diện dùng chung MongoDB làm nguồn catalog. SQLAlchemy duy trì bản chiếu dữ liệu phục vụ các truy vấn web và các bảng tài khoản/bình luận/lịch sử. Web cập nhật bản chiếu khi có request; trang danh mục kiểm tra thay đổi định kỳ.
 
 ### 1.2 Mục tiêu và phạm vi
 
-Mục tiêu là triển khai một ứng dụng web có đăng ký/đăng nhập, CRUD nội dung phim, tìm kiếm, phân trang, form có xác thực dữ liệu, lưu dữ liệu quan hệ, gửi email khi cấu hình SMTP và trao đổi JSON với API ngoài. Phạm vi hiện tại gồm tài khoản cơ bản, danh mục phim, bình luận, lịch sử bắt đầu xem và một endpoint REST phân trang. Chức năng VIP, VNPay, đánh giá sao, cấu hình hệ thống và giao diện quản trị mở rộng đã có trong backend desktop; chưa được gộp vào giao diện web mới. Việc tạo phim web dùng biểu mẫu; chưa có luồng tự import slug phimapi vào danh mục web.
+Mục tiêu là triển khai một ứng dụng web có đăng ký/đăng nhập, CRUD nội dung phim, tìm kiếm, phân trang, form có xác thực dữ liệu, lưu dữ liệu quan hệ, gửi email khi cấu hình SMTP và trao đổi JSON với API ngoài. Phạm vi hiện tại gồm tài khoản cơ bản, danh mục phim, bình luận, lịch sử bắt đầu xem và một endpoint REST phân trang. Admin nhập slug phimapi để tự lấy metadata, rồi có thể sửa thông tin; CRUD web ghi ngược catalog MongoDB dùng chung. Chức năng VNPay, đánh giá sao và cấu hình hệ thống hiện có trong desktop chưa được gộp vào giao diện web.
 
 ### 1.3 Công nghệ sử dụng
 
@@ -29,7 +29,7 @@ Mục tiêu là triển khai một ứng dụng web có đăng ký/đăng nhập
 | Ngôn ngữ, web | Python 3, Flask app factory và blueprints |
 | Giao diện | Jinja2, HTML và CSS responsive |
 | Form, bảo mật | Flask-WTF, WTForms, CSRFProtect, Werkzeug password hash, Flask-Login |
-| Dữ liệu web | Flask-SQLAlchemy / SQLAlchemy; SQLite mặc định, URL cấu hình có thể chuyển sang MySQL |
+| Dữ liệu web | MongoDB chung cho catalog phim; SQLAlchemy cho bản chiếu truy vấn web, tài khoản, bình luận và lịch sử |
 | Email | Flask-Mail; SMTP lấy từ biến môi trường |
 | Lập trình mạng | urllib.request, JSON, phimapi.com; endpoint REST trả JSON |
 | Ứng dụng hiện hữu | CustomTkinter, Flask REST API, MongoEngine/MongoDB, httpx, VLC/webview |
@@ -116,7 +116,7 @@ Chạy trên Windows: tạo virtual environment, cài `pip install -r requiremen
 
 ### 3.5 Cơ sở dữ liệu với Flask-SQLAlchemy
 
-Model khai báo cột và khóa ngoại bằng SQLAlchemy ORM. Route tạo/sửa/xóa thêm thay đổi vào `db.session`, gọi `commit()` khi thành công và rollback trường hợp slug bị trùng. Lệnh Flask `init-db` tạo bảng cho môi trường mới. Dữ liệu SQLite dùng cho bản demo; URL kết nối có thể chuyển sang MySQL mà không thay giao diện hoặc route. Dự án chưa cấu hình Flask-Migrate, do đó thay đổi schema cần có quy trình migration trước khi triển khai dữ liệu lâu dài.
+Model khai báo cột và khóa ngoại bằng SQLAlchemy ORM. Route tạo/sửa/xóa cập nhật MongoDB catalog trước, sau đó lưu bản chiếu SQL qua `db.session`; request danh mục lấy thay đổi mới từ MongoDB để desktop và web hội tụ. Tài khoản, bình luận và lịch sử tiếp tục lưu SQL. Lệnh Flask `init-db` tạo bảng cho môi trường mới. Dự án chưa cấu hình Flask-Migrate, do đó thay đổi schema cần có quy trình migration trước khi triển khai dữ liệu lâu dài.
 
 ### 3.6 Gửi email với Flask-Mail
 
@@ -128,7 +128,7 @@ Hàm `fetch_phimapi()` tạo HTTP Request bằng `urllib.request`, đặt header
 
 ### 3.8 Chức năng mở rộng
 
-Ứng dụng lưu lịch sử bắt đầu xem, bình luận, gắn nhãn VIP, nhúng trình phát và có REST API. Repo còn có bản desktop với VNPay, đánh giá sao, lịch sử chi tiết, quản trị users/settings/logs và tích hợp MongoDB. Đây là các năng lực của nhánh desktop/API; không nên xem chúng là chức năng đã nối vào web app mới. Hướng phát triển web gồm import phim theo slug, kiểm soát quyền VIP, đánh giá sao, dashboard và migration.
+Ứng dụng lưu lịch sử bắt đầu xem, bình luận, gắn nhãn VIP, nhúng trình phát và có REST API. Catalog dùng MongoDB chung; web đồng bộ thay đổi từ desktop trong các lần tải dữ liệu và tự kiểm tra trang danh mục định kỳ. Import bằng slug lấy metadata tự động; sửa/xóa ở web được ghi vào MongoDB để desktop thấy thay đổi. Repo còn có bản desktop với VNPay, đánh giá sao, lịch sử chi tiết và quản trị users/settings/logs. Hướng phát triển web gồm kiểm soát quyền VIP, đánh giá sao, dashboard và migration.
 
 ## 4. Kết quả và kiểm thử
 
@@ -146,7 +146,7 @@ Các màn hình được triển khai trong template gồm danh mục/tìm kiế
 
 ### 4.2 Kiểm thử chức năng
 
-Trong lần cập nhật này chưa chạy kiểm thử tự động hay thử tay trên trình duyệt. Bảng dưới đây là kịch bản cần thực thi; cột kết quả thực tế không được tự đánh dấu đạt khi chưa chạy.
+Chưa chạy kiểm thử tự động hoặc kiểm thử end-to-end trên trình duyệt. Đã chạy lệnh đồng bộ catalog với MongoDB hiện cấu hình và xác nhận 6 phim hoạt động trong bản chiếu SQLAlchemy. Các luồng còn lại trong bảng vẫn cần nhóm thực thi.
 
 | Kịch bản | Dữ liệu thử | Kết quả mong đợi | Kết quả thực tế |
 |---|---|---|---|
@@ -159,6 +159,7 @@ Trong lần cập nhật này chưa chạy kiểm thử tự động hay thử t
 | Bình luận có CSRF | Thành viên gửi nội dung; request thiếu token | Lưu bình luận hợp lệ; request thiếu token bị từ chối | Chưa chạy |
 | Tích hợp phimapi | Slug tồn tại và mạng lỗi | Nhúng URL nếu có; báo lỗi thân thiện khi API lỗi | Chưa chạy |
 | API JSON | `/api/movies?page=1&limit=12` | JSON gồm items và pagination | Chưa chạy |
+| Đồng bộ catalog | MongoDB desktop hiện có | Bản chiếu SQL web nhận đủ phim theo slug | Đã đồng bộ 6 phim |
 
 ## 5. Kết luận và hướng phát triển
 
@@ -176,8 +177,8 @@ Hạn chế hiện tại là email cần SMTP, phát phim phụ thuộc khả n�
 
 ## Phụ lục A Hướng dẫn chạy
 
-Tạo môi trường ảo, cài `requirements.txt`, cấu hình `.env`, chạy `flask --app run_web.py init-db`, tạo admin bằng `flask --app run_web.py create-admin`, sau đó chạy `python run_web.py`. Tạo tài khoản thành viên qua giao diện. Nguồn mã ở thư mục dự án hiện tại; chưa có URL GitHub được xác nhận. Không đưa thư mục virtual environment hoặc thông tin bí mật trong `.env` vào gói nộp.
+Tạo môi trường ảo, cài `requirements.txt`, cấu hình `.env`, chạy `flask --app run_web.py init-db`, tạo admin bằng `flask --app run_web.py create-admin`, sau đó chạy `python run_web.py`. Catalog dùng chung MongoDB với desktop và đồng bộ khi web nhận request; trang danh mục tự kiểm tra thay đổi định kỳ. Có thể gọi `flask --app run_web.py sync-desktop-movies` để ép đồng bộ ngay. Tạo tài khoản thành viên qua giao diện. Nguồn mã ở thư mục dự án hiện tại; chưa có URL GitHub được xác nhận. Không đưa thư mục virtual environment hoặc thông tin bí mật trong `.env` vào gói nộp.
 
 ## Phụ lục B Cơ sở dữ liệu và dữ liệu mẫu
 
-Lệnh `init-db` tạo bảng SQLite cho phiên bản web. Cơ sở dữ liệu rỗng ban đầu; quản trị viên thêm dữ liệu phim bằng biểu mẫu. Ứng dụng desktop có lệnh seed MongoDB riêng (`python -m backend.seed`) và không dùng chung schema với bản web.
+Lệnh `init-db` tạo bảng SQLAlchemy trên SQLite cho tài khoản, bình luận, lịch sử và bản chiếu catalog. Catalog gốc dùng MongoDB chung với desktop. Quản trị viên nhập slug phimapi để tải metadata hoặc cập nhật metadata bằng biểu mẫu.

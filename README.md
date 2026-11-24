@@ -1,6 +1,6 @@
 # PHIMHAY-GUI
 
-Đồ án xem phim trực tuyến gồm hai cách sử dụng cùng đề tài: ứng dụng desktop Python/CustomTkinter với REST API Flask và MongoDB; cùng phiên bản web Flask được xây dựng theo tiêu chí báo cáo môn học, dùng Jinja2, Flask-WTF, Flask-SQLAlchemy và Flask-Mail. Phiên bản web lưu dữ liệu mặc định trong SQLite để giảng viên có thể chạy nhanh; có thể đổi sang MySQL bằng `WEB_DATABASE_URL`.
+Đồ án xem phim trực tuyến gồm hai giao diện cùng đề tài: desktop Python/CustomTkinter và web Flask/Jinja2. Cả hai dùng chung MongoDB cho catalog phim. Web dùng thêm Flask-SQLAlchemy cho tài khoản, bình luận, lịch sử và bản chiếu catalog; SQLite là database mặc định cho các dữ liệu SQL này. Cấu hình `WEB_DATABASE_URL` có thể chuyển phần SQL sang một database SQLAlchemy khác.
 
 ## Cài đặt
 
@@ -18,10 +18,11 @@ Trong `.env`, đặt `WEB_SECRET_KEY` thành giá trị ngẫu nhiên riêng. Kh
 ```bat
 flask --app run_web.py init-db
 flask --app run_web.py create-admin
+flask --app run_web.py sync-desktop-movies
 python run_web.py
 ```
 
-Mở `http://127.0.0.1:5001`. Đăng ký tài khoản người dùng từ giao diện. Tạo phim và sửa/xóa phim bằng tài khoản quản trị. Khi cấu hình SMTP, ứng dụng gửi email chào mừng sau đăng ký; nếu chưa cấu hình SMTP, tài khoản vẫn được tạo và ứng dụng báo rõ email chưa gửi.
+Mở `http://127.0.0.1:5001`. Web và desktop dùng MongoDB chung làm nguồn catalog. Web đọc thay đổi từ desktop khi có request; trang danh mục và chi tiết đang mở kiểm tra cập nhật khoảng mỗi 15 giây. Admin web chỉ cần nhập slug để lấy metadata từ phimapi, rồi có thể sửa trường phim. Thao tác web được ghi ngược vào MongoDB để desktop nhận thay đổi. Lệnh `sync-desktop-movies` vẫn có thể dùng để đồng bộ ngay. Cần có `MONGODB_URI` kết nối được trong `.env`. Khi cấu hình SMTP, ứng dụng gửi email chào mừng sau đăng ký; nếu chưa cấu hình SMTP, tài khoản vẫn được tạo và ứng dụng báo rõ email chưa gửi.
 
 Endpoint JSON có phân trang: `GET /api/movies?q=batman&page=1&limit=12`. Chi tiết/phát phim yêu cầu kết nối `phimapi.com`; tính năng còn lại dùng dữ liệu trong cơ sở dữ liệu cục bộ.
 

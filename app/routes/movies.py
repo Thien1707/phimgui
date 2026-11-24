@@ -4,11 +4,10 @@ from urllib.request import Request, urlopen
 
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
-from sqlalchemy.exc import IntegrityError
-
 from app import db
-from app.forms import CommentForm, MovieForm
+from app.forms import CommentForm, MovieForm, MovieSlugForm
 from app.models import Comment, Movie, WatchHistory
+from app.services.catalog_sync import deactivate_shared_movie, save_web_movie_to_desktop
 
 bp = Blueprint("movies", __name__)
 
@@ -27,6 +26,8 @@ def fetch_phimapi(slug):
 @bp.get("/movies/<int:movie_id>")
 def detail(movie_id):
     movie = db.get_or_404(Movie, movie_id)
+    if not movie.is_active:
+        abort(404)
     comments = Comment.query.filter_by(movie_id=movie.id).order_by(Comment.created_at.desc()).all()
     return render_template("catalog/detail.html", movie=movie, comments=comments, form=CommentForm())
 
@@ -78,21 +79,44 @@ def admin_required():
 @login_required
 def create_movie():
     admin_required()
-    form = MovieForm()
+    form = MovieSlugForm()
     if form.validate_on_submit():
-        movie = Movie(slug=form.slug.data.strip(), title=form.title.data.strip(),
-                      origin_name=form.origin_name.data or "", year=form.year.data,
-                      category=form.category.data or "", poster_url=form.poster_url.data or "",
-                      description=form.description.data or "", is_vip=form.is_vip.data)
-        db.session.add(movie)
+        slug = form.slug.data.strip()
+        payload = fetch_phimapi(slug)
+        if not payload or not payload.get("status") or not payload.get("movie"):
+            flash("Không tìm thấy phim từ slug này hoặc phimapi đang lỗi.", "error")
+            return render_template("admin/movie_import.html", form=form)
+
+        data = payload["movie"]
+        slug = (data.get("slug") or slug).strip()
+        movie = Movie.query.filter_by(slug=slug).first()
+        if movie is None:
+            movie = Movie(slug=slug, title=data.get("name") or slug)
+            db.session.add(movie)
+        category_items = data.get("category") or []
+        category = ", ".join(
+            item.get("name", "") for item in category_items if isinstance(item, dict)
+        ) if isinstance(category_items, list) else str(category_items)
         try:
+            movie.title = (data.get("name") or slug)[:255]
+            movie.origin_name = (data.get("origin_name") or "")[:255]
+            movie.description = data.get("content") or ""
+            movie.poster_url = data.get("poster_url") or data.get("thumb_url") or ""
+            try:
+                movie.year = int(data.get("year")) if data.get("year") else None
+            except (TypeError, ValueError):
+                movie.year = None
+            movie.category = category[:100]
+            movie.is_active = True
+            save_web_movie_to_desktop(movie, api_data=data)
             db.session.commit()
-            flash("Đã thêm phim.", "success")
-            return redirect(url_for("catalog.index"))
-        except IntegrityError:
+            flash("Đã tải metadata và lưu phim. Bạn có thể chỉnh sửa các trường bên dưới.", "success")
+            return redirect(url_for("movies.edit_movie", movie_id=movie.id))
+        except Exception:
             db.session.rollback()
-            flash("Slug phim đã tồn tại.", "error")
-    return render_template("admin/movie_form.html", form=form, title="Thêm phim")
+            current_app.logger.exception("Movie import failed.")
+            flash("Không lưu được phim vào MongoDB/SQLite. Kiểm tra kết nối MongoDB.", "error")
+    return render_template("admin/movie_import.html", form=form)
 
 
 @bp.route("/admin/movies/<int:movie_id>/edit", methods=["GET", "POST"])
@@ -101,11 +125,20 @@ def edit_movie(movie_id):
     admin_required()
     movie = db.get_or_404(Movie, movie_id)
     form = MovieForm(obj=movie)
+    form.slug.render_kw = {"readonly": True}
     if form.validate_on_submit():
+        original_slug = movie.slug
         form.populate_obj(movie)
-        db.session.commit()
-        flash("Đã cập nhật phim.", "success")
-        return redirect(url_for("movies.detail", movie_id=movie.id))
+        movie.slug = original_slug
+        try:
+            save_web_movie_to_desktop(movie)
+            db.session.commit()
+            flash("Đã cập nhật phim trên web và MongoDB dùng chung với desktop.", "success")
+            return redirect(url_for("movies.detail", movie_id=movie.id))
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception("Movie update failed.")
+            flash("Không cập nhật được catalog MongoDB. Kiểm tra kết nối MongoDB.", "error")
     return render_template("admin/movie_form.html", form=form, title="Sửa phim")
 
 
@@ -114,7 +147,13 @@ def edit_movie(movie_id):
 def delete_movie(movie_id):
     admin_required()
     movie = db.get_or_404(Movie, movie_id)
-    db.session.delete(movie)
-    db.session.commit()
-    flash("Đã xóa phim.", "success")
+    try:
+        deactivate_shared_movie(movie.slug)
+        movie.is_active = False
+        db.session.commit()
+        flash("Đã ẩn phim trên web và desktop.", "success")
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Movie deletion failed.")
+        flash("Không ẩn được phim trong MongoDB. Kiểm tra kết nối MongoDB.", "error")
     return redirect(url_for("catalog.index"))

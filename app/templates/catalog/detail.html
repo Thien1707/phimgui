@@ -1,9 +1,27 @@
 {% extends 'base.html' %}{% block title %}{{ movie.title }} · PHIMHAY{% endblock %}{% block content %}
 <a class="back-link" href="{{ url_for('catalog.index') }}">← Danh sách phim</a>
-<section class="detail-layout"><div>{% if movie.poster_url %}<img class="detail-poster" src="{{ movie.poster_url }}" alt="Poster {{ movie.title }}">{% else %}<div class="detail-poster poster-placeholder">PHIMHAY</div>{% endif %}</div>
+<section class="detail-layout" id="movie-detail" data-movie-id="{{ movie.id }}"><div>{% if movie.poster_url %}<img class="detail-poster" src="{{ movie.poster_url }}" alt="Poster {{ movie.title }}">{% else %}<div class="detail-poster poster-placeholder">PHIMHAY</div>{% endif %}</div>
 <div class="detail-copy"><p class="eyebrow">{{ movie.category or 'PHIM' }}{% if movie.year %} · {{ movie.year }}{% endif %}</p><h1>{{ movie.title }}</h1><p class="muted">{{ movie.origin_name }}</p><p>{{ movie.description or 'Nội dung phim đang được cập nhật.' }}</p>
 {% if movie.is_vip %}<span class="badge">NỘI DUNG VIP</span>{% endif %}
 {% if current_user.is_authenticated %}<form method="post" action="{{ url_for('movies.watch', movie_id=movie.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button">Xem phim</button></form>{% else %}<a class="button" href="{{ url_for('auth.login') }}">Đăng nhập để xem</a>{% endif %}
 {% if current_user.is_authenticated and current_user.role == 'admin' %}<a class="button secondary" href="{{ url_for('movies.edit_movie', movie_id=movie.id) }}">Sửa phim</a><form method="post" action="{{ url_for('movies.delete_movie', movie_id=movie.id) }}" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button danger">Xóa</button></form>{% endif %}</div></section>
 <section class="comments"><h2>Bình luận</h2>{% if current_user.is_authenticated %}<form method="post" action="{{ url_for('movies.comment', movie_id=movie.id) }}">{{ form.hidden_tag() }}{{ form.body(class_='field', rows=3, placeholder='Chia sẻ cảm nhận của bạn') }}{{ form.submit(class_='button') }}</form>{% else %}<p class="muted">Đăng nhập để bình luận.</p>{% endif %}
-{% for comment in comments %}<article class="comment"><b>{{ comment.user.username }}</b><span class="muted"> · {{ comment.created_at.strftime('%d/%m/%Y %H:%M') }}</span><p>{{ comment.body }}</p></article>{% else %}<p class="muted">Chưa có bình luận.</p>{% endfor %}</section>{% endblock %}
+{% for comment in comments %}<article class="comment"><b>{{ comment.user.username }}</b><span class="muted"> · {{ comment.created_at.strftime('%d/%m/%Y %H:%M') }}</span><p>{{ comment.body }}</p></article>{% else %}<p class="muted">Chưa có bình luận.</p>{% endfor %}</section>
+<script>
+(() => {
+  const detail = document.getElementById('movie-detail');
+  const endpoint = new URL("{{ url_for('catalog.movie_json', movie_id=movie.id) }}", location.origin);
+  const signature = data => [data.title, data.originName, data.description, data.posterUrl,
+    data.year || '', data.category || '', data.isVip].join('|');
+  const initial = signature({title: {{ movie.title|tojson }}, originName: {{ movie.origin_name|tojson }},
+    description: {{ (movie.description or '')|tojson }}, posterUrl: {{ (movie.poster_url or '')|tojson }},
+    year: {{ movie.year|tojson }}, category: {{ (movie.category or '')|tojson }}, isVip: {{ movie.is_vip|tojson }}});
+  setInterval(async () => {
+    try {
+      const response = await fetch(endpoint, {cache: 'no-store'});
+      if (!response.ok) { location.reload(); return; }
+      if (signature(await response.json()) !== initial) location.reload();
+    } catch (_) { /* Retry on the next interval. */ }
+  }, 15000);
+})();
+</script>{% endblock %}
