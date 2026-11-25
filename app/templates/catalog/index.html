@@ -1,41 +1,7 @@
-{% extends 'base.html' %}{% block title %}Khám phá phim · PHIMHAY{% endblock %}
-{% block content %}
-<section class="hero"><p class="eyebrow">THƯ VIỆN PHIM</p><h1>Chọn bộ phim cho tối nay</h1><p>Tìm kiếm phim, khám phá nội dung mới và lưu lại lịch sử xem.</p>
-  <form class="search" method="get"><input name="q" value="{{ request.args.get('q','') }}" placeholder="Tên phim hoặc tên gốc"><button>Tìm phim</button></form>
-</section>
-{% if current_user.is_authenticated and current_user.role == 'admin' %}<p><a class="button secondary" href="{{ url_for('movies.create_movie') }}">+ Nhập phim bằng slug</a></p>{% endif %}
-<div class="section-heading"><h2>{% if request.args.get('q') %}Kết quả tìm kiếm{% else %}Danh sách phim{% endif %}</h2><span>{{ page.total }} phim</span></div>
-<section class="movie-grid">
-{% for movie in page.items %}<article class="movie-card" data-movie-key="{{ movie.slug }}|{{ movie.title }}|{{ movie.poster_url }}|{{ movie.year or '' }}|{{ movie.category }}"><a href="{{ url_for('movies.detail', movie_id=movie.id) }}">
-  {% if movie.poster_url %}<img src="{{ movie.poster_url }}" alt="Poster {{ movie.title }}">{% else %}<div class="poster-placeholder">PHIMHAY</div>{% endif %}
-  <div class="movie-meta">{% if movie.is_vip %}<span class="badge">VIP</span>{% endif %}<span>{{ movie.year or 'Phim mới' }}{% if movie.category %} · {{ movie.category }}{% endif %}</span></div>
-  <h3>{{ movie.title }}</h3><p class="muted">{{ movie.origin_name }}</p></a></article>
-{% else %}<p class="empty">Chưa có phim phù hợp. Quản trị viên có thể nhập phim bằng slug.</p>{% endfor %}
-</section>
-{% if page.pages > 1 %}<nav class="pagination">{% if page.has_prev %}<a href="{{ url_for('catalog.index', q=request.args.get('q'), page=page.prev_num) }}">← Trước</a>{% endif %}<span>Trang {{ page.page }} / {{ page.pages }}</span>{% if page.has_next %}<a href="{{ url_for('catalog.index', q=request.args.get('q'), page=page.next_num) }}">Tiếp →</a>{% endif %}</nav>{% endif %}
-<script>
-(() => {
-  const current = () => Array.from(document.querySelectorAll('.movie-card'))
-    .map(card => card.dataset.movieKey).join('\n');
-  const search = new URLSearchParams(location.search);
-  const page = search.get('page') || '1';
-  const query = search.get('q') || '';
-  const endpoint = new URL("{{ url_for('catalog.movies_json') }}", location.origin);
-  endpoint.searchParams.set('page', page);
-  endpoint.searchParams.set('limit', '12');
-  if (query) endpoint.searchParams.set('q', query);
-  const initial = current();
-  setInterval(async () => {
-    try {
-      const response = await fetch(endpoint, {cache: 'no-store'});
-      if (!response.ok) return;
-      const data = await response.json();
-      const latest = (data.items || []).map(movie =>
-        [movie.slug, movie.title, movie.posterUrl || '', movie.year || '', movie.category || ''].join('|')
-      ).join('\n');
-      if (latest !== initial) location.reload();
-    } catch (_) { /* Temporary network issue; next poll retries. */ }
-  }, 15000);
-})();
-</script>
-{% endblock %}
+{% extends 'base.html' %}{% block title %}PHIMHAY · Xem phim online{% endblock %}{% block content %}
+{% if hero_movies %}{% set hero=hero_movies[0] %}<section class="hero" id="hero" style="--hero:url('{{ hero.thumbUrl or hero.posterUrl }}')"><div class="hero-copy"><span class="eyebrow" id="hero-meta">PHIM HAY · {{ hero.year or 'Mới cập nhật' }}</span><h1 id="hero-title">{{ hero.title }}</h1><p id="hero-description">{{ hero.originName or 'Khám phá bộ phim đang được quan tâm trên PHIMHAY.' }}</p><a class="btn" id="hero-link" href="{{ url_for('movies.detail',slug=hero.slug) }}">▶ Xem chi tiết</a><div class="hero-dots" id="hero-dots"></div></div></section><script>const heroMovies={{ hero_movies|tojson }};let heroIndex=0;const heroEl=document.getElementById('hero');const dots=document.getElementById('hero-dots');heroMovies.forEach((m,i)=>{const d=document.createElement('button');d.className='hero-dot'+(i===0?' active':'');d.setAttribute('aria-label','Phim '+(i+1));d.onclick=()=>showHero(i);dots.append(d)});function showHero(i){heroIndex=i;const m=heroMovies[i];heroEl.style.setProperty('--hero',`url("${m.thumbUrl||m.posterUrl}")`);document.getElementById('hero-title').textContent=m.title;document.getElementById('hero-description').textContent=m.originName||'Khám phá phim đang được quan tâm trên PHIMHAY.';document.getElementById('hero-meta').textContent='PHIM HAY · '+(m.year||'Mới cập nhật');document.getElementById('hero-link').href='/movie/'+encodeURIComponent(m.slug);[...dots.children].forEach((d,j)=>d.classList.toggle('active',j===i))}if(heroMovies.length>1)setInterval(()=>showHero((heroIndex+1)%heroMovies.length),5000)</script>{% endif %}
+{% if continue_watching %}<div class="section-head"><h2>Tiếp tục xem</h2></div><div class="grid">{% for item in continue_watching %}{% set m=item.movieId %}<article class="poster"><a href="{{ url_for('movies.watch',slug=m.slug,episode=(item.episode-1),time=item.currentTime) }}"><img src="{{ m.thumbUrl or m.posterUrl }}" alt=""><div class="poster-info"><h3>{{ m.title }}</h3><span class="muted">Tập {{ item.episode }} · Tiếp tục xem</span></div></a></article>{% endfor %}</div>{% endif %}
+<div class="section-head"><h2>{% if query %}Kết quả tìm kiếm{% else %}Phim mới cập nhật{% endif %}</h2><span class="muted">{{ data.pagination.total or 0 }} phim</span></div>
+<form class="filters" method="get"><input name="q" placeholder="Tìm phim" value="{{ query }}"><select name="category"><option value="">Tất cả thể loại</option>{% for c in categories %}<option value="{{ c.id or c._id }}" {% if selected_category==(c.id or c._id|string) %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select><select name="type"><option value="">Mọi loại phim</option>{% for t in filters.types %}<option {% if selected_type==t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select><select name="country"><option value="">Mọi quốc gia</option>{% for c in filters.countries %}<option {% if selected_country==c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select><button class="primary">Lọc phim</button></form>
+{% if data['items'] %}<div class="grid">{% for movie in data['items'] %}<article class="poster"><a href="{{ url_for('movies.detail',slug=movie.slug) }}">{% if movie.posterUrl or movie.thumbUrl %}<img loading="lazy" src="{{ movie.posterUrl or movie.thumbUrl }}" alt="{{ movie.title }}">{% else %}<div class="logo-placeholder">PHIMHAY</div>{% endif %}{% if movie.viewStatus %}<span class="badge">VIP</span>{% endif %}<div class="poster-info"><h3>{{ movie.title }}</h3><span class="muted">{{ movie.year or '' }}{% if movie.type %} · {{ movie.type }}{% endif %}</span></div></a></article>{% endfor %}</div>{% else %}<div class="empty">Chưa có phim phù hợp. Hãy thử bộ lọc khác.</div>{% endif %}
+{% set p=data.pagination %}{% if p.totalPages>1 %}<div class="pagination">{% if p.page>1 %}<a class="btn" href="?{{ request.query_string.decode() }}&page={{ p.page-1 }}">‹ Trước</a>{% endif %}<span class="muted">Trang {{ p.page }} / {{ p.totalPages }}</span>{% if p.page<p.totalPages %}<a class="btn" href="?{{ request.query_string.decode() }}&page={{ p.page+1 }}">Tiếp ›</a>{% endif %}</div>{% endif %}<script>const renderedMovies={{ data['items']|tojson }};const catalogQuery=new URLSearchParams(location.search);catalogQuery.set('limit','24');setInterval(async()=>{try{const url=(catalogQuery.has('q')?'/api/movies/search?':'/api/movies/?')+catalogQuery.toString();const response=await fetch(url,{cache:'no-store'});if(!response.ok)return;const latest=await response.json();if(JSON.stringify(latest.items)!==JSON.stringify(renderedMovies))location.reload()}catch(e){}},30000)</script>{% endblock %}

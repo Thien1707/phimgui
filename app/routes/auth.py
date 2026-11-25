@@ -1,57 +1,63 @@
-from flask import Blueprint, flash, redirect, render_template, url_for
-from flask_login import current_user, login_user, logout_user
-from flask_mail import Message
-from sqlalchemy import or_
+from flask import Blueprint, flash, redirect, render_template, session, url_for
 
-from app import db, mail
 from app.forms import LoginForm, RegisterForm
-from app.models import User
+from app.services.internal_api import BackendAPIError, api_call, web_user
 
 bp = Blueprint("auth", __name__)
 
 
 @bp.route("/register", methods=["GET", "POST"])
 def register():
-    if current_user.is_authenticated:
+    if web_user():
         return redirect(url_for("catalog.index"))
     form = RegisterForm()
     if form.validate_on_submit():
-        email = form.email.data.strip().lower()
-        username = form.username.data.strip()
-        exists = User.query.filter(or_(User.email == email, User.username == username)).first()
-        if exists:
-            flash("Email hoặc tên tài khoản đã được sử dụng.", "error")
-        else:
-            user = User(username=username, email=email)
-            user.set_password(form.password.data)
-            db.session.add(user)
-            db.session.commit()
-            try:
-                mail.send(Message("Chào mừng đến PHIMHAY", recipients=[user.email],
-                                  body=f"Xin chào {user.username}, tài khoản của bạn đã được tạo."))
-                flash("Đăng ký thành công. Email chào mừng đã được gửi.", "success")
-            except Exception:
-                flash("Đăng ký thành công. SMTP chưa cấu hình nên email chưa được gửi.", "success")
-            login_user(user)
+        headers = {}
+        if form.admin_secret.data:
+            headers["x-admin-secret"] = form.admin_secret.data
+        try:
+            result = api_call(
+                "POST",
+                "/api/auth/register",
+                data={
+                    "email": form.email.data.strip(),
+                    "password": form.password.data,
+                    "displayName": form.username.data.strip(),
+                },
+                headers=headers,
+            )
+            session.clear()
+            session["phimhay_token"] = result["token"]
+            flash("Tạo tài khoản thành công.", "success")
             return redirect(url_for("catalog.index"))
+        except BackendAPIError as exc:
+            flash(str(exc), "error")
     return render_template("auth/register.html", form=form)
 
 
 @bp.route("/login", methods=["GET", "POST"])
 def login():
-    if current_user.is_authenticated:
+    if web_user():
         return redirect(url_for("catalog.index"))
     form = LoginForm()
     if form.validate_on_submit():
-        user = User.query.filter_by(email=form.email.data.strip().lower()).first()
-        if user and user.check_password(form.password.data):
-            login_user(user)
+        try:
+            result = api_call(
+                "POST",
+                "/api/auth/login",
+                data={"identifier": form.identifier.data.strip(), "password": form.password.data},
+            )
+            session.clear()
+            session["phimhay_token"] = result["token"]
+            flash("Đăng nhập thành công.", "success")
             return redirect(url_for("catalog.index"))
-        flash("Email hoặc mật khẩu không chính xác.", "error")
+        except BackendAPIError as exc:
+            flash(str(exc), "error")
     return render_template("auth/login.html", form=form)
 
 
 @bp.post("/logout")
 def logout():
-    logout_user()
+    session.pop("phimhay_token", None)
+    flash("Bạn đã đăng xuất.", "success")
     return redirect(url_for("catalog.index"))

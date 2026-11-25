@@ -1,4 +1,1 @@
-{% extends 'base.html' %}{% block title %}Đăng nhập · PHIMHAY{% endblock %}{% block content %}
-<section class="form-panel"><p class="eyebrow">CHÀO MỪNG TRỞ LẠI</p><h1>Đăng nhập</h1><form method="post">{{ form.hidden_tag() }}
-{% for field in [form.email, form.password] %}<label>{{ field.label }}{{ field(class_='field') }}</label>{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}{% endfor %}
-{{ form.submit(class_='button') }}</form><p class="muted">Chưa có tài khoản? <a href="{{ url_for('auth.register') }}">Đăng ký</a></p></section>{% endblock %}
+{% extends 'base.html' %}{% block title %}Đăng nhập · PHIMHAY{% endblock %}{% block content %}<form class="panel form-card" method="post"><h1>Đăng nhập</h1>{{ form.hidden_tag() }}<label class="field">{{ form.identifier.label }}{{ form.identifier(placeholder='Email hoặc tên đăng nhập') }}</label><label class="field">{{ form.password.label }}{{ form.password }}</label><button class="primary">Đăng nhập</button><p class="muted">Chưa có tài khoản? <a href="{{ url_for('auth.register') }}">Đăng ký</a></p></form>{% endblock %}

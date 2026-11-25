@@ -1,6 +1,1 @@
-{% extends 'base.html' %}{% block title %}Nhập phim bằng slug · PHIMHAY{% endblock %}
-{% block content %}<section class="form-panel"><p class="eyebrow">QUẢN TRỊ NỘI DUNG</p><h1>Nhập phim từ phimapi</h1>
-<p class="muted">Nhập slug phim. Tên, tên gốc, mô tả, poster, năm và thể loại sẽ được lấy tự động. Sau khi lưu, bạn có thể sửa metadata.</p>
-<form method="post">{{ form.hidden_tag() }}<label>{{ form.slug.label }}{{ form.slug(class_='field', placeholder='vi-du-ten-phim') }}</label>
-{% for error in form.slug.errors %}<small class="field-error">{{ error }}</small>{% endfor %}{{ form.submit(class_='button') }}</form>
-<p class="muted"><a href="{{ url_for('catalog.index') }}">← Quay lại danh mục</a></p></section>{% endblock %}
+{% extends 'base.html' %}{% block title %}Thêm phim · PHIMHAY{% endblock %}{% block content %}<section class="panel form-card"><h1>Thêm phim từ slug</h1><p class="muted">Nhập slug từ phimapi.com, hệ thống tự lấy tên, ảnh, mô tả và thông tin; bạn có thể chỉnh sau.</p><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="field">Slug phim<input name="slug" required pattern="[a-zA-Z0-9_-]+" placeholder="vi-du-ten-phim"></label><button class="primary">Lấy thông tin và thêm phim</button></form></section>{% endblock %}

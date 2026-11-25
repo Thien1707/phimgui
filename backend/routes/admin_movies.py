@@ -18,6 +18,8 @@ def _admin_movie_doc(m: Movie) -> dict:
         "viewStatus": m.view_status,
         "commentRatingPolicy": m.comment_rating_policy,
         "isActive": m.is_active,
+        "content": m.content or "",
+        "categoryIds": [str(category_id) for category_id in (m.category_ids or [])],
     }
 
 

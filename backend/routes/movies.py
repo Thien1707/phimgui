@@ -135,6 +135,27 @@ def set_movie_categories(movie_id: str):
     return jsonify({"ok": True, "movieId": str(movie.id)})
 
 
+@bp.post("/<movie_id>/assign-series")
+@require_admin
+def assign_series(movie_id: str):
+    main_id = parse_object_id(movie_id)
+    data = request.get_json(silent=True) or {}
+    ids = data.get("movieIds") or []
+    movie_ids = [parse_object_id(value) for value in ids]
+    if not main_id or len(movie_ids) < 2 or any(value is None for value in movie_ids):
+        return jsonify({"error": "Chọn ít nhất hai phim hợp lệ"}), 400
+    if movie_ids[0] != main_id:
+        return jsonify({"error": "Phim đầu tiên phải là phim chính của series"}), 400
+    movies = [Movie.objects(id=value, is_active=True).first() for value in movie_ids]
+    if any(movie is None for movie in movies):
+        return jsonify({"error": "Không tìm thấy một hoặc nhiều phim"}), 404
+    for part, movie in enumerate(movies, start=1):
+        movie.series_id = main_id
+        movie.part_number = part
+        movie.save()
+    return jsonify({"ok": True, "seriesId": str(main_id), "movieIds": [str(value) for value in movie_ids]})
+
+
 @bp.get("/<slug>")
 def movie_detail(slug: str):
     movie = Movie.objects(slug=slug, is_active=True).first()

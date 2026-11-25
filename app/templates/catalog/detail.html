@@ -1,27 +1,4 @@
-{% extends 'base.html' %}{% block title %}{{ movie.title }} · PHIMHAY{% endblock %}{% block content %}
-<a class="back-link" href="{{ url_for('catalog.index') }}">← Danh sách phim</a>
-<section class="detail-layout" id="movie-detail" data-movie-id="{{ movie.id }}"><div>{% if movie.poster_url %}<img class="detail-poster" src="{{ movie.poster_url }}" alt="Poster {{ movie.title }}">{% else %}<div class="detail-poster poster-placeholder">PHIMHAY</div>{% endif %}</div>
-<div class="detail-copy"><p class="eyebrow">{{ movie.category or 'PHIM' }}{% if movie.year %} · {{ movie.year }}{% endif %}</p><h1>{{ movie.title }}</h1><p class="muted">{{ movie.origin_name }}</p><p>{{ movie.description or 'Nội dung phim đang được cập nhật.' }}</p>
-{% if movie.is_vip %}<span class="badge">NỘI DUNG VIP</span>{% endif %}
-{% if current_user.is_authenticated %}<form method="post" action="{{ url_for('movies.watch', movie_id=movie.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button">Xem phim</button></form>{% else %}<a class="button" href="{{ url_for('auth.login') }}">Đăng nhập để xem</a>{% endif %}
-{% if current_user.is_authenticated and current_user.role == 'admin' %}<a class="button secondary" href="{{ url_for('movies.edit_movie', movie_id=movie.id) }}">Sửa phim</a><form method="post" action="{{ url_for('movies.delete_movie', movie_id=movie.id) }}" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button danger">Xóa</button></form>{% endif %}</div></section>
-<section class="comments"><h2>Bình luận</h2>{% if current_user.is_authenticated %}<form method="post" action="{{ url_for('movies.comment', movie_id=movie.id) }}">{{ form.hidden_tag() }}{{ form.body(class_='field', rows=3, placeholder='Chia sẻ cảm nhận của bạn') }}{{ form.submit(class_='button') }}</form>{% else %}<p class="muted">Đăng nhập để bình luận.</p>{% endif %}
-{% for comment in comments %}<article class="comment"><b>{{ comment.user.username }}</b><span class="muted"> · {{ comment.created_at.strftime('%d/%m/%Y %H:%M') }}</span><p>{{ comment.body }}</p></article>{% else %}<p class="muted">Chưa có bình luận.</p>{% endfor %}</section>
-<script>
-(() => {
-  const detail = document.getElementById('movie-detail');
-  const endpoint = new URL("{{ url_for('catalog.movie_json', movie_id=movie.id) }}", location.origin);
-  const signature = data => [data.title, data.originName, data.description, data.posterUrl,
-    data.year || '', data.category || '', data.isVip].join('|');
-  const initial = signature({title: {{ movie.title|tojson }}, originName: {{ movie.origin_name|tojson }},
-    description: {{ (movie.description or '')|tojson }}, posterUrl: {{ (movie.poster_url or '')|tojson }},
-    year: {{ movie.year|tojson }}, category: {{ (movie.category or '')|tojson }}, isVip: {{ movie.is_vip|tojson }}});
-  setInterval(async () => {
-    try {
-      const response = await fetch(endpoint, {cache: 'no-store'});
-      if (!response.ok) { location.reload(); return; }
-      if (signature(await response.json()) !== initial) location.reload();
-    } catch (_) { /* Retry on the next interval. */ }
-  }, 15000);
-})();
-</script>{% endblock %}
+{% extends 'base.html' %}{% block title %}{{ movie.title }} · PHIMHAY{% endblock %}{% block content %}<section class="detail-hero panel"><img src="{{ movie.posterUrl or movie.thumbUrl }}" alt="{{ movie.title }}"><div class="detail-copy"><span class="eyebrow">{{ movie.type or 'PHIM' }} · {{ movie.year or '' }}{% if movie.viewStatus %} · VIP{% endif %}</span><h1>{{ movie.title }}</h1><p class="muted">{{ movie.originName }}</p><p>{{ movie.content or 'Thông tin phim đang được cập nhật.' }}</p><p class="muted">{{ movie.quality or '' }} {{ movie.lang or '' }} {% if movie.episode_current %}· {{ movie.episode_current }}{% endif %}</p><div class="actions">{% if web_user %}{% if movie.canWatch %}<a class="btn" href="{{ url_for('movies.watch',slug=movie.slug) }}">▶ Xem phim</a>{% else %}<a class="btn" href="{{ url_for('movies.vip') }}">Mở khóa với VIP</a>{% endif %}{% else %}<a class="btn" href="{{ url_for('auth.login',next=url_for('movies.watch',slug=movie.slug)) }}">Đăng nhập để xem</a>{% endif %}{% if movie.trailer_url %}<a class="btn" href="{{ movie.trailer_url }}" target="_blank">Trailer</a>{% endif %}</div></div></section>
+{% if movie.series %}<h2>Các phần phim</h2><div class="episode-list">{% for part in movie.series %}<a href="{{ url_for('movies.detail',slug=part.slug) }}">{{ part.title }}</a>{% endfor %}</div>{% endif %}
+<section id="reviews" class="panel"><h2>Đánh giá · {{ rating.average }}/5 ({{ rating.count }})</h2>{% if web_user %}<form class="actions" method="post" action="{{ url_for('movies.rate',slug=movie.slug) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Đánh giá của bạn</label><select name="stars">{% for n in range(5,0,-1) %}<option value="{{ n }}" {% if rating.userStars==n %}selected{% endif %}>{{ '★' * n }}</option>{% endfor %}</select><button class="primary">Gửi đánh giá</button></form>{% else %}<a href="{{ url_for('auth.login') }}">Đăng nhập để đánh giá</a>{% endif %}</section>
+<section id="comments" class="panel"><h2>Bình luận</h2>{% if web_user %}<form class="comment-form" method="post" action="{{ url_for('movies.comment',slug=movie.slug) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><textarea name="body" required maxlength="2000" placeholder="Chia sẻ cảm nhận của bạn..."></textarea><button class="primary">Gửi bình luận</button></form>{% else %}<p><a href="{{ url_for('auth.login') }}">Đăng nhập để bình luận</a></p>{% endif %}{% for c in comments %}<div class="comment"><strong>{{ c.user.displayName }}</strong><span class="muted">{{ c.createdAt[:10] if c.createdAt else '' }}</span><p>{{ c.body }}</p>{% if web_user and (web_user.id==c.user.id or web_user.isAdmin) %}<form method="post" action="{{ url_for('movies.delete_comment',comment_id=c.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="text-btn">Xóa</button></form>{% endif %}</div>{% else %}<p class="muted">Chưa có bình luận.</p>{% endfor %}</section>{% endblock %}

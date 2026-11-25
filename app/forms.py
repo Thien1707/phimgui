@@ -4,15 +4,16 @@ from wtforms.validators import DataRequired, Email, EqualTo, Length, NumberRange
 
 
 class RegisterForm(FlaskForm):
-    username = StringField("Tên tài khoản", validators=[DataRequired(), Length(min=3, max=80)])
     email = StringField("Email", validators=[DataRequired(), Email(), Length(max=255)])
     password = PasswordField("Mật khẩu", validators=[DataRequired(), Length(min=8, max=128)])
+    username = StringField("Tên đăng nhập", validators=[DataRequired(), Length(min=3, max=80)])
     confirm = PasswordField("Nhập lại mật khẩu", validators=[DataRequired(), EqualTo("password")])
+    admin_secret = PasswordField("Admin secret (chỉ khi được cấp)", validators=[Optional(), Length(max=255)])
     submit = SubmitField("Tạo tài khoản")
 
 
 class LoginForm(FlaskForm):
-    email = StringField("Email", validators=[DataRequired(), Email()])
+    identifier = StringField("Tên đăng nhập hoặc Email", validators=[DataRequired(), Length(max=255)])
     password = PasswordField("Mật khẩu", validators=[DataRequired()])
     submit = SubmitField("Đăng nhập")
 
