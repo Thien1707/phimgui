@@ -215,7 +215,30 @@ def admin_series():
                 flash(str(exc), "error")
         return redirect(url_for("movies.admin_series"))
     items = api_call("GET", "/api/admin/movies").get("items", [])
-    return render_template("admin/series.html", items=items)
+    by_id = {item["_id"]: item for item in items}
+    grouped = {}
+    for item in items:
+        if item.get("seriesId"):
+            grouped.setdefault(item["seriesId"], []).append(item)
+    series_groups = []
+    for series_id, parts in grouped.items():
+        parts.sort(key=lambda item: (item.get("partNumber") or 9999, item.get("title", "").casefold()))
+        series_groups.append({"id": series_id, "main": by_id.get(series_id, parts[0]), "parts": parts})
+    series_groups.sort(key=lambda group: group["main"].get("title", "").casefold())
+    unlinked_items = [item for item in items if not item.get("seriesId")]
+    unlinked_items.sort(key=lambda item: item.get("title", "").casefold())
+    return render_template("admin/series.html", items=unlinked_items, series_groups=series_groups)
+
+
+@bp.post("/admin/series/<movie_id>/unlink")
+@admin_required
+def admin_unlink_series(movie_id):
+    try:
+        api_call("POST", f"/api/movies/{movie_id}/unassign-series", data={})
+        flash("Đã gỡ phim khỏi series.", "success")
+    except BackendAPIError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("movies.admin_series"))
 
 
 @bp.post("/admin/categories/<category_id>/delete")

@@ -13,6 +13,8 @@ bp = Blueprint("admin_movies", __name__, url_prefix="/api/admin")
 def _admin_movie_doc(m: Movie) -> dict:
     return {
         "_id": str(m.id),
+        "seriesId": str(m.series_id) if m.series_id else None,
+        "partNumber": m.part_number,
         "slug": m.slug,
         "title": m.title,
         "viewStatus": m.view_status,

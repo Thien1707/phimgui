@@ -149,11 +149,50 @@ def assign_series(movie_id: str):
     movies = [Movie.objects(id=value, is_active=True).first() for value in movie_ids]
     if any(movie is None for movie in movies):
         return jsonify({"error": "Không tìm thấy một hoặc nhiều phim"}), 404
+    if any(movie.series_id and movie.series_id != main_id for movie in movies):
+        return jsonify({"error": "Hãy hủy liên kết series hiện tại trước khi ghép lại phim này"}), 409
     for part, movie in enumerate(movies, start=1):
         movie.series_id = main_id
         movie.part_number = part
         movie.save()
     return jsonify({"ok": True, "seriesId": str(main_id), "movieIds": [str(value) for value in movie_ids]})
+
+
+@bp.post("/<movie_id>/unassign-series")
+@require_admin
+def unassign_series(movie_id: str):
+    oid = parse_object_id(movie_id)
+    movie = Movie.objects(id=oid).first() if oid else None
+    if not movie or not movie.series_id:
+        return jsonify({"error": "Phim này chưa thuộc series nào"}), 404
+    series_id = movie.series_id
+    parts = list(Movie.objects(series_id=series_id).order_by("part_number", "title"))
+    remaining = [part for part in parts if part.id != movie.id]
+    movie.series_id = None
+    movie.part_number = None
+    movie.save()
+
+    # A series needs at least two films. When its main film is removed,
+    # promote the first remaining part and update the series reference.
+    if len(remaining) == 1:
+        remaining[0].series_id = None
+        remaining[0].part_number = None
+        remaining[0].save()
+    elif remaining:
+        new_main_id = remaining[0].id
+        for part_number, part in enumerate(remaining, start=1):
+            part.series_id = new_main_id
+            part.part_number = part_number
+            part.save()
+    log_activity(
+        request,
+        action="admin.movie.unassign_series",
+        target_type="movie",
+        target_id=str(movie.id),
+        metadata={"seriesId": str(series_id), "remainingCount": len(remaining)},
+        user=g.user,
+    )
+    return jsonify({"ok": True, "seriesId": str(series_id), "remainingCount": len(remaining)})
 
 
 @bp.get("/<slug>")

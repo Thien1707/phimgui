@@ -1,1 +1,100 @@
-{% extends 'base.html' %}{% block title %}Series phim · PHIMHAY{% endblock %}{% block content %}<section class="panel"><h1>Liên kết series</h1><p class="muted">Chọn phim theo thứ tự phát. Phim được chọn đầu tiên là phần chính của series. Giữ Ctrl để chọn nhiều phim.</p><form method="post" id="series-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="field">Danh sách phim<select id="series-select" multiple size="14">{% for m in items %}<option value="{{ m._id }}">{{ m.title }} — {{ m.slug }}</option>{% endfor %}</select></label><div id="series-hidden"></div><button class="primary">Liên kết thành series</button></form></section><script>const picker=document.getElementById('series-select'),hidden=document.getElementById('series-hidden');let order=[];picker.addEventListener('change',()=>{const selected=new Set([...picker.selectedOptions].map(o=>o.value));order=order.filter(id=>selected.has(id));[...picker.selectedOptions].forEach(o=>{if(!order.includes(o.value))order.push(o.value)});hidden.replaceChildren(...order.map(id=>{const input=document.createElement('input');input.type='hidden';input.name='movieIds';input.value=id;return input}))});</script>{% endblock %}
+{% extends 'base.html' %}
+{% block title %}Series phim · PHIMHAY{% endblock %}
+{% block content %}
+<section class="panel series-panel">
+  <h1>Liên kết series</h1>
+  <p class="muted">Tìm tên phim hoặc slug, rồi bấm “Thêm”. Sắp xếp danh sách bên dưới theo thứ tự phát; phim đầu tiên sẽ là phần chính.</p>
+  <form method="post" id="series-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="field" for="series-search">Tìm phim chưa liên kết</label>
+    <input id="series-search" type="search" placeholder="Nhập tên phim hoặc slug..." autocomplete="off">
+    <div id="series-results" class="series-results" aria-live="polite">
+      {% for m in items %}
+      <div class="series-result" data-id="{{ m._id }}" data-search="{{ (m.title ~ ' ' ~ m.slug)|lower }}">
+        <span><b>{{ m.title }}</b><small>{{ m.slug }}</small></span>
+        <button type="button" class="series-add">Thêm</button>
+      </div>
+      {% else %}<p class="muted series-empty">Không có phim chưa liên kết.</p>{% endfor %}
+    </div>
+    <h2 class="series-subhead">Thứ tự phim trong series</h2>
+    <p id="series-hint" class="muted">Chưa chọn phim. Cần ít nhất hai phim để tạo series.</p>
+    <ol id="series-order" class="series-order"></ol>
+    <div id="series-hidden"></div>
+    <button id="series-submit" class="primary" disabled>Liên kết thành series</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Series hiện có</h2>
+  <p class="muted">Dùng nút “Gỡ phim” ở từng phần để hủy liên kết riêng phim đó khỏi series.</p>
+  {% for group in series_groups %}
+  <article class="series-existing">
+    <div class="series-existing-content"><h3>{{ group.main.title }}</h3><ol>{% for part in group.parts %}<li><span>{{ part.title }} <span class="muted">({{ part.slug }})</span></span><form method="post" action="{{ url_for('movies.admin_unlink_series', movie_id=part._id) }}" onsubmit="return confirm('Gỡ riêng phim này khỏi series?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="series-remove" type="submit">Gỡ phim</button></form></li>{% endfor %}</ol></div>
+  </article>
+  {% else %}<p class="muted">Chưa có series nào được liên kết.</p>{% endfor %}
+</section>
+
+<script>
+(() => {
+  const search = document.getElementById('series-search');
+  const results = [...document.querySelectorAll('.series-result')];
+  const orderList = document.getElementById('series-order');
+  const hidden = document.getElementById('series-hidden');
+  const submit = document.getElementById('series-submit');
+  const hint = document.getElementById('series-hint');
+  const chosen = [];
+
+  function renderOrder() {
+    orderList.replaceChildren();
+    hidden.replaceChildren();
+    chosen.forEach((id, index) => {
+      const row = results.find(item => item.dataset.id === id);
+      if (!row) return;
+      const li = document.createElement('li');
+      const name = document.createElement('span');
+      name.textContent = `${index + 1}. ${row.querySelector('b').textContent} — ${row.querySelector('small').textContent}`;
+      const actions = document.createElement('span');
+      actions.className = 'series-order-actions';
+      [['↑', -1, 'Chuyển lên'], ['↓', 1, 'Chuyển xuống'], ['Xóa', 0, 'Bỏ chọn']].forEach(([label, delta, title]) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        button.title = title;
+        button.disabled = (delta === -1 && index === 0) || (delta === 1 && index === chosen.length - 1);
+        button.addEventListener('click', () => {
+          if (delta === 0) chosen.splice(index, 1);
+          else [chosen[index], chosen[index + delta]] = [chosen[index + delta], chosen[index]];
+          renderOrder();
+        });
+        actions.append(button);
+      });
+      li.append(name, actions);
+      orderList.append(li);
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'movieIds';
+      input.value = id;
+      hidden.append(input);
+    });
+    hint.hidden = chosen.length > 0;
+    submit.disabled = chosen.length < 2;
+    results.forEach(row => {
+      const button = row.querySelector('.series-add');
+      const selected = chosen.includes(row.dataset.id);
+      button.disabled = selected;
+      button.textContent = selected ? 'Đã thêm' : 'Thêm';
+    });
+  }
+
+  results.forEach(row => row.querySelector('.series-add').addEventListener('click', () => {
+    if (!chosen.includes(row.dataset.id)) chosen.push(row.dataset.id);
+    renderOrder();
+  }));
+  search.addEventListener('input', () => {
+    const query = search.value.trim().toLocaleLowerCase('vi');
+    results.forEach(row => { row.hidden = !row.dataset.search.includes(query); });
+  });
+  renderOrder();
+})();
+</script>
+{% endblock %}
